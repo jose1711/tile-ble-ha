@@ -54,6 +54,11 @@ class TilePresence(TileBleEntity, BinarySensorEntity):
 
         self.async_on_remove(async_dispatcher_connect(
             self.hass, SIGNAL_SEEN.format(entry_id=self._entry_id), _seen))
-        # periodic check for timeout expiry
+        # periodic check for timeout expiry (must be a @callback: a plain function would run
+        # in the executor thread, where async_write_ha_state is not allowed)
+        @callback
+        def _tick(_now) -> None:
+            self.async_write_ha_state()
+
         self.async_on_remove(async_track_time_interval(
-            self.hass, lambda _now: self.async_write_ha_state(), timedelta(seconds=30)))
+            self.hass, _tick, timedelta(seconds=30)))
