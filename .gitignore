@@ -1,0 +1,9 @@
+secrets/
+*.apk
+*.key
+.venv/
+tools/node-tile-check/node_modules/
+tools/node-tile-check/package/
+tools/node-tile-check/*.tgz
+tools/node-tile-check/package-lock.json
+__pycache__/

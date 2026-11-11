@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sign in to Tile",
+        "description": "Credentials are used once to download tracker keys; the password is not stored. Afterwards the integration works locally, without the cloud.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "select": {
+        "title": "Trackers",
+        "data": {
+          "tiles": "Trackers to track",
+          "battery_enabled": "Track battery (healthy/low/dead)"
+        },
+        "data_description": {
+          "battery_enabled": "Requires storing Tile credentials and a once-per-24h cloud check - the only part of this integration that is not fully local."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in to Tile again",
+        "description": "The stored Tile credentials for {email} were rejected. Enter the current password.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password",
+      "cannot_connect": "Cannot connect to the Tile cloud",
+      "no_tiles": "No trackers with a key found in the account"
+    },
+    "abort": {
+      "already_configured": "This account is already configured",
+      "reauth_successful": "Reauthentication successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "timeout": "Presence timeout (minutes)"
+        }
+      }
+    }
+  }
+}

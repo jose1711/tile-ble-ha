@@ -1,0 +1,1 @@
+{"name":"node-tile-check","version":"1.0.0","type":"module","dependencies":{"@abandonware/noble":"^1.9.2-26","node-tile":"^1.2.0"},"allowScripts":{"@abandonware/bluetooth-hci-socket@0.5.3-12":true,"@abandonware/noble@1.9.2-26":true,"bluetooth-hci-socket@0.5.1":true,"usb@2.19.1":true,"usocket@0.3.0":true}}

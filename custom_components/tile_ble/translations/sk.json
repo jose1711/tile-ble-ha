@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Prihlásenie do Tile",
+        "description": "Údaje sa použijú len raz na stiahnutie kľúčov trackerov, heslo sa neukladá. Po nastavení integrácia funguje lokálne bez cloudu.",
+        "data": {
+          "email": "E-mail",
+          "password": "Heslo"
+        }
+      },
+      "select": {
+        "title": "Trackery",
+        "data": {
+          "tiles": "Trackery na sledovanie",
+          "battery_enabled": "Sledovať batériu (zdravá/slabá/mrtvá)"
+        },
+        "data_description": {
+          "battery_enabled": "Vyžaduje uloženie Tile prihlasovacích údajov a raz za 24h dotaz na cloud - jediná časť integrácie, ktorá nie je plne lokálna."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Znovu sa prihlás do Tile",
+        "description": "Uložené prihlasovacie údaje Tile pre {email} boli odmietnuté. Zadaj aktuálne heslo.",
+        "data": {
+          "password": "Heslo"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nesprávny e-mail alebo heslo",
+      "cannot_connect": "Nepodarilo sa spojiť s Tile cloudom",
+      "no_tiles": "V účte sa nenašli trackery s kľúčom"
+    },
+    "abort": {
+      "already_configured": "Tento účet je už nastavený",
+      "reauth_successful": "Opätovné prihlásenie bolo úspešné"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "timeout": "Timeout prítomnosti (minúty)"
+        }
+      }
+    }
+  }
+}
