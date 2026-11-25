@@ -1,0 +1,11 @@
+[Unit]
+Description=Tile BLE scanner -> Home Assistant (tile_ble.report_advertisement)
+
+[Service]
+EnvironmentFile=%h/.local/share/tile2ha/env
+ExecStart=%h/.local/share/tile2ha/venv/bin/python %h/.local/share/tile2ha/tile2ha.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

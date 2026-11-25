@@ -81,6 +81,37 @@ tracker has a `device_tracker` entity that moves to the zone of the scanner that
 (HA's own adapters/proxies count as `zone.home`) and becomes `not_home` when nobody has heard it within
 the presence timeout. It can be assigned to a `person`.
 
+### Remote scanner on any Linux box (`tools/remote_scanner/`)
+Any Linux machine with a Bluetooth adapter (BlueZ) that can reach HA's HTTP API (LAN, VPN such as
+Netbird/Tailscale/WireGuard, or Nabu Casa) can act as a scanner for a static zone - e.g. a mini PC at
+a cottage or in an office. `tile2ha.py` scans for `0xFEED` advertisements with `bleak` and
+calls `tile_ble.report_advertisement` for each one (the same advertisement at most once per
+`TILE_REPORT_INTERVAL` seconds). It does not need the Tile keys: matching the privateId happens in HA.
+
+1. In HA create a [zone](https://www.home-assistant.io/integrations/zone/) for the place where the
+   box is located and a long-lived access token (Profile -> Security -> Long-lived access tokens).
+2. On the Linux box (as a regular user; BlueZ allows scanning over D-Bus without root):
+
+   ```bash
+   mkdir -p ~/.local/share/tile2ha ~/.config/systemd/user
+   python3 -m venv ~/.local/share/tile2ha/venv
+   ~/.local/share/tile2ha/venv/bin/pip install bleak
+   cp tools/remote_scanner/tile2ha.py ~/.local/share/tile2ha/
+   cp tools/remote_scanner/env.example ~/.local/share/tile2ha/env
+   chmod 600 ~/.local/share/tile2ha/env    # then fill in HA_URL, HA_TOKEN, TILE_ZONE
+   cp tools/remote_scanner/tile2ha.service ~/.config/systemd/user/
+   systemctl --user daemon-reload
+   systemctl --user enable --now tile2ha
+   sudo loginctl enable-linger "$USER"      # keep running without an active login / after reboot
+   ```
+
+3. Check it: `journalctl --user -u tile2ha -f` should show `reported (200): ...` lines, and the
+   tracker's `device_tracker` switches to the box's zone. HTTP `400` means HA runs a `tile_ble`
+   version without the service; `401` a wrong token.
+
+Several boxes in different zones can run at once; the tracker follows the one that heard it last.
+Advertisements of trackers that are not in your Tile account are ignored by HA.
+
 ## Installation
 Copy `custom_components/tile_ble` into your HA config (or add the repo to HACS as a custom
 repository) and restart HA.
