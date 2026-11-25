@@ -7,3 +7,11 @@ tools/node-tile-check/package/
 tools/node-tile-check/*.tgz
 tools/node-tile-check/package-lock.json
 __pycache__/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.jks
+*.keystore

@@ -1,0 +1,36 @@
+package io.github.jose1711.tile2ha
+
+import android.app.job.JobParameters
+import android.app.job.JobService
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+/**
+ * A Wi-Fi network connected: apply its rule (stop on an excluded SSID, resume on any other one).
+ * Disconnecting does not wake us; the watchdog resumes the scan then.
+ */
+class NetworkReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (Settings(context).enabled) ScanController.refresh(context, "wifi")
+    }
+}
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (Settings(context).enabled) ScanController.refresh(context, "štart")
+    }
+}
+
+/**
+ * Every ~15 min: re-registers the scan (after leaving an excluded Wi-Fi, a Bluetooth toggle, or the
+ * system dropping the scan). This is also the worst-case delay before scanning resumes.
+ */
+class WatchdogJob : JobService() {
+    override fun onStartJob(params: JobParameters): Boolean {
+        ScanController.refresh(this, "watchdog")
+        return false
+    }
+
+    override fun onStopJob(params: JobParameters): Boolean = true
+}

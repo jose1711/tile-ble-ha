@@ -112,6 +112,44 @@ calls `tile_ble.report_advertisement` for each one (the same advertisement at mo
 Several boxes in different zones can run at once; the tracker follows the one that heard it last.
 Advertisements of trackers that are not in your Tile account are ignored by HA.
 
+### Mobile scanner: Android app (`android/`)
+A phone can be a scanner too: it reports where it was when it heard the tracker. Pass coordinates
+(`latitude`, `longitude`, optional `gps_accuracy`) or `source_tracker` (an existing `device_tracker`/`person`,
+typically the HA Companion app of that phone - HA copies its current coordinates) instead of `zone`:
+
+```json
+{"service_data": "02005034270c2859af20", "rssi": -70, "source": "pixel",
+ "latitude": 48.1486, "longitude": 17.1077, "gps_accuracy": 800, "source_tracker": "device_tracker.pixel_8"}
+```
+
+Explicit coordinates win over `source_tracker`, which wins over `zone` (used only if the tracker has no
+coordinates). A sighting with coordinates sets the `device_tracker` to those coordinates (HA derives
+the zone / `not_home`, `source_type: gps`), and they are **kept as the last known location** after the
+presence timeout and across HA restarts ("where did I leave my keys"), until a newer sighting replaces
+them. The `last_seen` attribute says when that was. Presence (`binary_sensor`) still turns off after
+the timeout.
+
+The Android app **Tile2HA** in [`android/`](android/README.md) does this with little battery use: the
+scan is filtered in the Bluetooth controller and the app is woken only when a Tile/iBeacon is heard.
+Per Wi-Fi network it can report a fixed zone instead of a location (`HomeWifi = zone.home`) or skip
+scanning entirely (`HomeWifi = none`, e.g. at home where HA's own adapters/proxies cover it), and it uses network location (Wi-Fi/cell, no GPS, no Google Play Services) or `source_tracker`.
+
+## iBeacons
+Besides Tiles, the integration can track iBeacons with the same entities (presence, RSSI,
+`device_tracker` incl. mobile scanners). List them in the integration **Options**, one per line:
+
+```
+Car keys, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6, 1, 2
+Any bag, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6   # any major/minor
+```
+
+The most specific line wins. HA's own adapters/proxies are listened to directly (`zone.home`); other
+scanners call `tile_ble.report_ibeacon` with `uuid`, `major`, `minor` plus the same scanner fields as
+`report_advertisement` (`rssi`, `address`, `source`, `zone`, `latitude`/`longitude`/`gps_accuracy`,
+`source_tracker`). Removing a line removes its device. If the built-in **iBeacon Tracker** integration
+also sees the beacon, it has its own separate entity (home/away + distance, HA adapters only); disable
+one of them, or assign both to a `person`.
+
 ## Installation
 Copy `custom_components/tile_ble` into your HA config (or add the repo to HACS as a custom
 repository) and restart HA.

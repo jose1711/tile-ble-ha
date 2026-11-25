@@ -12,6 +12,9 @@ CONF_PASSWORD = "password"
 BATTERY_INTERVAL_HOURS = 24  # the only place where this integration calls the cloud
 
 SERVICE_REPORT_ADVERTISEMENT = "report_advertisement"
+SERVICE_REPORT_IBEACON = "report_ibeacon"
+
+CONF_IBEACONS = "ibeacons"  # options: one "Name, UUID[, major[, minor]]" per line
 
 SIGNAL_SEEN = f"{DOMAIN}_seen_{{entry_id}}"
 SIGNAL_BATTERY = f"{DOMAIN}_battery_{{entry_id}}"

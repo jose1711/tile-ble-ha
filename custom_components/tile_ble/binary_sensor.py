@@ -16,7 +16,7 @@ from .entity import TileBleEntity
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> None:
     data = entry.runtime_data
     timeout = entry.options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT) * 60
-    async_add_entities(TilePresence(t, data, entry.entry_id, timeout) for t in data.tiles.values())
+    async_add_entities(TilePresence(t, data, entry.entry_id, timeout) for t in data.trackables.values())
 
 
 class TilePresence(TileBleEntity, BinarySensorEntity):

@@ -25,3 +25,101 @@ report_advertisement:
       selector:
         entity:
           domain: zone
+    latitude:
+      example: 48.1486
+      selector:
+        number:
+          min: -90
+          max: 90
+          step: any
+    longitude:
+      example: 17.1077
+      selector:
+        number:
+          min: -180
+          max: 180
+          step: any
+    gps_accuracy:
+      example: 500
+      selector:
+        number:
+          min: 0
+          max: 100000
+          unit_of_measurement: m
+    source_tracker:
+      example: "device_tracker.pixel_8"
+      selector:
+        entity:
+          domain:
+            - device_tracker
+            - person
+
+report_ibeacon:
+  fields:
+    uuid:
+      required: true
+      example: "2f234454-cf6d-4a0f-adf2-f4911ba9ffa6"
+      selector:
+        text:
+    major:
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 0
+          max: 65535
+    minor:
+      required: true
+      example: 2
+      selector:
+        number:
+          min: 0
+          max: 65535
+    rssi:
+      example: -60
+      selector:
+        number:
+          min: -127
+          max: 20
+          unit_of_measurement: dBm
+    address:
+      example: "06:0D:8C:B5:1E:E2"
+      selector:
+        text:
+    source:
+      example: "nucbox"
+      selector:
+        text:
+    zone:
+      example: "zone.chata"
+      selector:
+        entity:
+          domain: zone
+    latitude:
+      example: 48.1486
+      selector:
+        number:
+          min: -90
+          max: 90
+          step: any
+    longitude:
+      example: 17.1077
+      selector:
+        number:
+          min: -180
+          max: 180
+          step: any
+    gps_accuracy:
+      example: 500
+      selector:
+        number:
+          min: 0
+          max: 100000
+          unit_of_measurement: m
+    source_tracker:
+      example: "device_tracker.pixel_8"
+      selector:
+        entity:
+          domain:
+            - device_tracker
+            - person

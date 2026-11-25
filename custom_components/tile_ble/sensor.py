@@ -15,7 +15,7 @@ BATTERY_ICONS = {"healthy": "mdi:battery", "low": "mdi:battery-alert", "dead": "
 
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> None:
     data = entry.runtime_data
-    entities = [TileRssi(t, data, entry.entry_id) for t in data.tiles.values()]
+    entities = [TileRssi(t, data, entry.entry_id) for t in data.trackables.values()]
     if entry.data.get(CONF_BATTERY_ENABLED):
         entities += [TileBattery(t, data, entry.entry_id) for t in data.tiles.values()]
     async_add_entities(entities)

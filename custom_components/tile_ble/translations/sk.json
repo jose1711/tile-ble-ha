@@ -41,9 +41,14 @@
     "step": {
       "init": {
         "data": {
-          "timeout": "Timeout prítomnosti (minúty)"
-        }
+          "timeout": "Timeout prítomnosti (minúty)",
+          "ibeacons": "iBeacony (jeden na riadok: Názov, UUID[, major[, minor]])"
+        },
+        "description": "Príklad riadku iBeaconu: `Kľúče od auta, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6, 1, 2` (vynechaný major/minor = ľubovoľný). Text za # je komentár."
       }
+    },
+    "error": {
+      "invalid_ibeacons": "Neplatný zoznam iBeaconov: {error}"
     }
   },
   "services": {
@@ -70,6 +75,72 @@
         "zone": {
           "name": "Zóna",
           "description": "Statická zóna, v ktorej je skener (predvolene zone.home). device_tracker trackera sa presunie do tejto zóny."
+        },
+        "latitude": {
+          "name": "Zemepisná šírka",
+          "description": "Kde bol mobilný skener (telefón), keď tracker počul. Má prednosť pred zónou; súradnice ostanú ako posledná známa poloha."
+        },
+        "longitude": {
+          "name": "Zemepisná dĺžka",
+          "description": "Zemepisná dĺžka mobilného skenera (povinná spolu so šírkou)."
+        },
+        "gps_accuracy": {
+          "name": "Presnosť polohy",
+          "description": "Presnosť súradníc v metroch (sieťová poloha býva 50-5000 m)."
+        },
+        "source_tracker": {
+          "name": "Zdrojový tracker",
+          "description": "Namiesto šírky/dĺžky použije aktuálne súradnice tohto device_tracker/person (napr. HA Companion apky telefónu, ktorý hlási). Ak žiadne nemá, použije sa zóna."
+        }
+      }
+    },
+    "report_ibeacon": {
+      "name": "Nahlásiť iBeacon",
+      "description": "Odovzdá iBeacon reklamu zachytenú mimo Home Assistant (napr. Android apkou). Sledujú sa len beacony uvedené v nastaveniach integrácie.",
+      "fields": {
+        "uuid": {
+          "name": "UUID",
+          "description": "Proximity UUID iBeaconu."
+        },
+        "major": {
+          "name": "Major",
+          "description": "Major iBeaconu (0-65535)."
+        },
+        "minor": {
+          "name": "Minor",
+          "description": "Minor iBeaconu (0-65535)."
+        },
+        "rssi": {
+          "name": "RSSI",
+          "description": "Sila signálu v dBm."
+        },
+        "address": {
+          "name": "Adresa",
+          "description": "BLE MAC adresa reklamy."
+        },
+        "source": {
+          "name": "Zdroj",
+          "description": "Názov skenera, ktorý ju zachytil (atribút source senzora prítomnosti)."
+        },
+        "zone": {
+          "name": "Zóna",
+          "description": "Statická zóna, v ktorej je skener (predvolene zone.home). device_tracker trackera sa presunie do tejto zóny."
+        },
+        "latitude": {
+          "name": "Zemepisná šírka",
+          "description": "Kde bol mobilný skener (telefón), keď tracker počul. Má prednosť pred zónou; súradnice ostanú ako posledná známa poloha."
+        },
+        "longitude": {
+          "name": "Zemepisná dĺžka",
+          "description": "Zemepisná dĺžka mobilného skenera (povinná spolu so šírkou)."
+        },
+        "gps_accuracy": {
+          "name": "Presnosť polohy",
+          "description": "Presnosť súradníc v metroch (sieťová poloha býva 50-5000 m)."
+        },
+        "source_tracker": {
+          "name": "Zdrojový tracker",
+          "description": "Namiesto šírky/dĺžky použije aktuálne súradnice tohto device_tracker/person (napr. HA Companion apky telefónu, ktorý hlási). Ak žiadne nemá, použije sa zóna."
         }
       }
     }

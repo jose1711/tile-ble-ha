@@ -14,4 +14,4 @@ class TileBleEntity(Entity):
         self._tile_uuid = tile["tile_uuid"]
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._tile_uuid)}, name=tile["name"],
-            manufacturer="Tile", model=tile.get("product"))
+            manufacturer=tile.get("manufacturer", "Tile"), model=tile.get("product"))

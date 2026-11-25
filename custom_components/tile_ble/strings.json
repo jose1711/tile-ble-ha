@@ -41,9 +41,14 @@
     "step": {
       "init": {
         "data": {
-          "timeout": "Presence timeout (minutes)"
-        }
+          "timeout": "Presence timeout (minutes)",
+          "ibeacons": "iBeacons (one per line: Name, UUID[, major[, minor]])"
+        },
+        "description": "Example iBeacon line: `Car keys, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6, 1, 2` (omitted major/minor = any). Text after # is a comment."
       }
+    },
+    "error": {
+      "invalid_ibeacons": "Invalid iBeacon list: {error}"
     }
   },
   "services": {
@@ -70,6 +75,72 @@
         "zone": {
           "name": "Zone",
           "description": "Static zone where the scanner is located (default zone.home). The tracker's device_tracker moves to this zone."
+        },
+        "latitude": {
+          "name": "Latitude",
+          "description": "Where a mobile scanner (phone) was when it heard the tracker. Takes precedence over zone; the coordinates are kept as the last known location."
+        },
+        "longitude": {
+          "name": "Longitude",
+          "description": "Longitude of the mobile scanner (required together with latitude)."
+        },
+        "gps_accuracy": {
+          "name": "GPS accuracy",
+          "description": "Accuracy of the coordinates in meters (network location is typically 50-5000 m)."
+        },
+        "source_tracker": {
+          "name": "Source tracker",
+          "description": "Instead of latitude/longitude, take the current coordinates of this device_tracker/person (e.g. the HA Companion app of the reporting phone). Falls back to zone if it has none."
+        }
+      }
+    },
+    "report_ibeacon": {
+      "name": "Report iBeacon",
+      "description": "Feed an iBeacon advertisement captured outside Home Assistant (e.g. by the Android scanner app). Only beacons listed in the integration options are tracked.",
+      "fields": {
+        "uuid": {
+          "name": "UUID",
+          "description": "iBeacon proximity UUID."
+        },
+        "major": {
+          "name": "Major",
+          "description": "iBeacon major (0-65535)."
+        },
+        "minor": {
+          "name": "Minor",
+          "description": "iBeacon minor (0-65535)."
+        },
+        "rssi": {
+          "name": "RSSI",
+          "description": "Signal strength in dBm."
+        },
+        "address": {
+          "name": "Address",
+          "description": "BLE MAC address of the advertisement."
+        },
+        "source": {
+          "name": "Source",
+          "description": "Name of the scanner that captured it (shown in the presence sensor's source attribute)."
+        },
+        "zone": {
+          "name": "Zone",
+          "description": "Static zone where the scanner is located (default zone.home). The tracker's device_tracker moves to this zone."
+        },
+        "latitude": {
+          "name": "Latitude",
+          "description": "Where a mobile scanner (phone) was when it heard the tracker. Takes precedence over zone; the coordinates are kept as the last known location."
+        },
+        "longitude": {
+          "name": "Longitude",
+          "description": "Longitude of the mobile scanner (required together with latitude)."
+        },
+        "gps_accuracy": {
+          "name": "GPS accuracy",
+          "description": "Accuracy of the coordinates in meters (network location is typically 50-5000 m)."
+        },
+        "source_tracker": {
+          "name": "Source tracker",
+          "description": "Instead of latitude/longitude, take the current coordinates of this device_tracker/person (e.g. the HA Companion app of the reporting phone). Falls back to zone if it has none."
         }
       }
     }
