@@ -28,13 +28,10 @@ class Settings(context: Context) {
         get() = p.getBoolean("enabled", false)
         set(v) = p.edit().putBoolean("enabled", v).apply()
 
-    var haUrl: String
-        get() = p.getString("ha_url", "") ?: ""
-        set(v) = p.edit().putString("ha_url", v.trim().trimEnd('/')).apply()
-
-    var token: String
-        get() = p.getString("token", "") ?: ""
-        set(v) = p.edit().putString("token", v.trim()).apply()
+    /** Full tile_ble webhook URL from the integration's options (https://…/api/webhook/<id>). */
+    var webhookUrl: String
+        get() = p.getString("webhook_url", "") ?: ""
+        set(v) = p.edit().putString("webhook_url", v.trim()).remove("ha_url").remove("token").apply()
 
     var source: String
         get() = p.getString("source", null) ?: Build.MODEL

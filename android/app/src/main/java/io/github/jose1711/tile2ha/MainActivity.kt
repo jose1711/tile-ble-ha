@@ -29,7 +29,6 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
     private lateinit var s: Settings
     private lateinit var url: EditText
-    private lateinit var token: EditText
     private lateinit var source: EditText
     private lateinit var tracker: EditText
     private lateinit var interval: EditText
@@ -67,11 +66,9 @@ class MainActivity : Activity() {
         status = TextView(this).apply { setTypeface(typeface, Typeface.BOLD) }
         col.addView(status)
 
-        label("Home Assistant URL")
-        url = field(s.haUrl, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
-        hint("napr. https://ha.example.sk alebo http://192.168.1.10:8123 (cez VPN)")
-        label("Long-lived access token")
-        token = field(s.token, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        label("Webhook URL")
+        url = field(s.webhookUrl, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
+        hint("Skopíruj z HA: Tile BLE → Konfigurovať (https://…/api/webhook/…). Token netreba; URL drž v tajnosti.")
         label("Názov skenera (source)")
         source = field(s.source)
 
@@ -133,8 +130,7 @@ class MainActivity : Activity() {
     }
 
     private fun save() {
-        s.haUrl = url.text.toString()
-        s.token = token.text.toString()
+        s.webhookUrl = url.text.toString()
         s.source = source.text.toString().ifBlank { Build.MODEL }
         s.sourceTracker = tracker.text.toString()
         s.locationMode = when {
@@ -168,13 +164,13 @@ class MainActivity : Activity() {
     }
 
     private fun testConnection() {
-        val ha = HaClient(s.haUrl, s.token)
+        val ha = HaClient(s.webhookUrl)
         status.text = "Testujem…"
         thread {
             val code = ha.ping()
             val msg = when (code) {
-                200 -> "HA OK (200)"
-                401 -> "Zlý token (401)"
+                200 -> "HA OK: " + ha.lastBody
+                404 -> "Neznámy webhook – skopíruj URL znova z HA"
                 -1 -> "Nedostupné: ${ha.lastError}"
                 else -> "HTTP $code ${ha.lastError ?: ""}"
             }

@@ -134,6 +134,19 @@ scan is filtered in the Bluetooth controller and the app is woken only when a Ti
 Per Wi-Fi network it can report a fixed zone instead of a location (`HomeWifi = zone.home`) or skip
 scanning entirely (`HomeWifi = none`, e.g. at home where HA's own adapters/proxies cover it), and it uses network location (Wi-Fi/cell, no GPS, no Google Play Services) or `source_tracker`.
 
+The app talks to a **webhook** instead of the REST API, so it needs no long-lived access token. Each
+config entry has its own webhook id; the full URL is shown in **Options** (with a checkbox to
+regenerate it). `POST` a JSON object with `type` and the same fields as the services:
+
+```json
+{"type": "tile", "service_data": "02005034270c2859af20", "rssi": -70, "latitude": 48.1486, "longitude": 17.1077}
+{"type": "ibeacon", "uuid": "2f234454-cf6d-4a0f-adf2-f4911ba9ffa6", "major": 1, "minor": 2, "zone": "zone.home"}
+{"type": "ping"}
+```
+
+The reply is `{"matched": true|false}` (`ping`: `{"ok": true, "tiles": N, "beacons": M}`), `400` with
+`{"error": …}` on invalid input. An unknown webhook id gets HA's generic empty `200`.
+
 ## iBeacons
 Besides Tiles, the integration can track iBeacons with the same entities (presence, RSSI,
 `device_tracker` incl. mobile scanners). List them in the integration **Options**, one per line:

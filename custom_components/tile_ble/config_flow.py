@@ -5,12 +5,15 @@ from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
+from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.const import CONF_WEBHOOK_ID
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 
-from .const import (CONF_BATTERY_ENABLED, CONF_EMAIL, CONF_IBEACONS, CONF_PASSWORD, CONF_TILES, CONF_TIMEOUT,
+from . import webhook_url
+from .const import (CONF_BATTERY_ENABLED, CONF_REGENERATE_WEBHOOK, CONF_EMAIL, CONF_IBEACONS, CONF_PASSWORD, CONF_TILES, CONF_TIMEOUT,
                     DEFAULT_TIMEOUT, DOMAIN)
 from .ibeacon import IBeaconConfigError, parse_config
 from .tile_cloud import TileAuthError, TileRequestError, fetch_tiles
@@ -105,7 +108,10 @@ class TileBleConfigFlow(ConfigFlow, domain=DOMAIN):
 class TileBleOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
-        placeholders = {"error": ""}
+        entry = self.config_entry
+        placeholders = {"error": "", "webhook_url": "-"}
+        if wid := entry.data.get(CONF_WEBHOOK_ID):
+            placeholders["webhook_url"] = webhook_url(self.hass, wid)
         if user_input is not None:
             try:
                 parse_config(user_input.get(CONF_IBEACONS, ""))
@@ -113,6 +119,10 @@ class TileBleOptionsFlow(OptionsFlow):
                 errors[CONF_IBEACONS] = "invalid_ibeacons"
                 placeholders["error"] = str(err)
             else:
+                if user_input.pop(CONF_REGENERATE_WEBHOOK, False):
+                    # the old URL stops working once the entry reloads with the new options
+                    self.hass.config_entries.async_update_entry(
+                        entry, data={**entry.data, CONF_WEBHOOK_ID: webhook.async_generate_id()})
                 return self.async_create_entry(data=user_input)
         opts = user_input or self.config_entry.options
         return self.async_show_form(step_id="init", errors=errors, description_placeholders=placeholders,
@@ -121,4 +131,5 @@ class TileBleOptionsFlow(OptionsFlow):
                 vol.All(int, vol.Range(min=1, max=240)),
             vol.Optional(CONF_IBEACONS, default=opts.get(CONF_IBEACONS, "")): selector.TextSelector(
                 selector.TextSelectorConfig(multiline=True)),
+            vol.Optional(CONF_REGENERATE_WEBHOOK, default=False): bool,
         }))

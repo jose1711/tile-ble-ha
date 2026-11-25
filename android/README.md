@@ -39,8 +39,11 @@ them), so in a busy city the app wakes a bit more often.
 1. Download the APK from the repo **Releases** (tags `app-v*`) or the **Actions** artifact
    `tile2ha-apk`, allow "install unknown apps" for your browser/file manager and install it.
    Obtainium can follow the GitHub releases for updates.
-2. In HA: install `tile_ble` 0.3.0+, create a long-lived access token (Profile -> Security).
-3. In the app fill in the HA URL, token, location mode, optional `source_tracker`, iBeacon UUIDs and
+2. In HA: install `tile_ble` 0.4.0+, open **Tile BLE -> Configure** and copy the webhook URL
+   (`https://…/api/webhook/<id>`). No access token is needed: the webhook only accepts sightings, but
+   anyone with the URL can feed fake ones, so keep it private (the same page can regenerate it).
+   HA must be reachable from the phone (external URL, Nabu Casa or VPN).
+3. In the app fill in the webhook URL, location mode, optional `source_tracker`, iBeacon UUIDs and
    excluded SSIDs, then:
    1. **Oprávnenia** - Bluetooth scan + location,
    2. **Poloha na pozadí** - choose "Allow all the time" (needed to receive scan results and read the

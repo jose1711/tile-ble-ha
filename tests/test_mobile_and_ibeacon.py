@@ -208,3 +208,47 @@ async def test_options_flow_validates_ibeacons(hass):
     res = await hass.config_entries.options.async_configure(
         res["flow_id"], {"timeout": 15, CONF_IBEACONS: BEACONS})
     assert res["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_webhook(hass, hass_client_no_auth):
+    """The phone app reports through the entry's webhook (no access token)."""
+    assert await async_setup_component(hass, "webhook", {})
+    entry, _ = await _setup(hass, {CONF_IBEACONS: BEACONS})
+    wid = entry.data["webhook_id"]
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{wid}"
+
+    resp = await client.post(url, json={"type": "ping"})
+    assert resp.status == 200 and (await resp.json())["tiles"] == 1
+
+    resp = await client.post(url, json={"type": "tile", "service_data": _sd(), "rssi": -60,
+                                        "latitude": FAR[0], "longitude": FAR[1], "gps_accuracy": 30})
+    assert (await resp.json()) == {"matched": True}
+    await hass.async_block_till_done()
+    st = hass.states.get("device_tracker.wallet")
+    assert st.state == "not_home" and st.attributes["latitude"] == FAR[0]
+
+    resp = await client.post(url, json={"type": "ibeacon", "uuid": BUUID, "major": 1, "minor": 2,
+                                        "zone": "zone.chata"})
+    assert (await resp.json()) == {"matched": True}
+    await hass.async_block_till_done()
+    assert hass.states.get("device_tracker.car_keys").state == "Chata"
+
+    for body in ({"type": "tile", "service_data": "zz"}, {"type": "ibeacon", "uuid": BUUID},
+                 {"type": "nope"}, ["x"]):
+        assert (await client.post(url, json=body)).status == 400
+    assert (await client.post(url, data="{")).status == 400
+
+    # regenerating in the options: the old URL stops working, the new one is shown in the form
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    assert wid in flow["description_placeholders"]["webhook_url"]
+    with patch("custom_components.tile_ble.bluetooth.async_register_callback",
+               MagicMock(return_value=lambda: None)):  # the entry reloads
+        await hass.config_entries.options.async_configure(
+            flow["flow_id"], {"timeout": 15, CONF_IBEACONS: BEACONS, "regenerate_webhook": True})
+        await hass.async_block_till_done()
+    new = entry.data["webhook_id"]
+    assert new != wid and "regenerate_webhook" not in entry.options
+    assert (await client.post(url, json={"type": "ping"})).status == 200  # unknown webhook: HA answers 200
+    assert "tiles" not in await (await client.post(url, json={"type": "ping"})).text()
+    assert (await (await client.post(f"/api/webhook/{new}", json={"type": "ping"})).json())["ok"]

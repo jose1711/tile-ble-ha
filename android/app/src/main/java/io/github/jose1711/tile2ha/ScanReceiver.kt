@@ -78,7 +78,7 @@ class ScanReceiver : BroadcastReceiver() {
             s.log("${due.size}× neodoslané: bez polohy a bez source_tracker")
             return
         }
-        val ha = HaClient(s.haUrl, s.token)
+        val ha = HaClient(s.webhookUrl)
         for (r in due) {
             val data = JSONObject().put("rssi", r.rssi).put("address", r.address).put("source", s.source)
             if (loc != null) {
@@ -87,13 +87,13 @@ class ScanReceiver : BroadcastReceiver() {
             }
             if (zone != null) data.put("zone", zone)
             else if (s.sourceTracker.isNotEmpty()) data.put("source_tracker", s.sourceTracker)
-            val service = when (r) {
-                is Report.Tile -> { data.put("service_data", r.serviceData); "report_advertisement" }
+            val type = when (r) {
+                is Report.Tile -> { data.put("service_data", r.serviceData); "tile" }
                 is Report.IBeacon -> {
-                    data.put("uuid", r.uuid).put("major", r.major).put("minor", r.minor); "report_ibeacon"
+                    data.put("uuid", r.uuid).put("major", r.major).put("minor", r.minor); "ibeacon"
                 }
             }
-            val code = ha.callService("tile_ble", service, data)
+            val code = ha.report(type, data)
             val what = when (r) {
                 is Report.Tile -> "Tile ${r.serviceData.takeLast(8)}"
                 is Report.IBeacon -> "iBeacon ${r.uuid.take(8)}…/${r.major}/${r.minor}"

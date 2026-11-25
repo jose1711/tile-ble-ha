@@ -83,7 +83,7 @@ object ScanController {
         val rule = Wifi.currentRule(ctx, s)
         val why = when {
             !s.enabled -> "vypnuté"
-            s.haUrl.isEmpty() || s.token.isEmpty() -> "chýba URL alebo token"
+            s.webhookUrl.isEmpty() -> "chýba URL webhooku"
             !hasScanPermissions(ctx) -> "chýbajú oprávnenia"
             scanner == null -> "Bluetooth je vypnutý"
             rule != null && rule.zone == null -> "wifi ${rule.ssid} je vo výnimkách"

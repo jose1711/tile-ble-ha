@@ -14,6 +14,7 @@ BATTERY_INTERVAL_HOURS = 24  # the only place where this integration calls the c
 SERVICE_REPORT_ADVERTISEMENT = "report_advertisement"
 SERVICE_REPORT_IBEACON = "report_ibeacon"
 
+CONF_REGENERATE_WEBHOOK = "regenerate_webhook"  # options flow checkbox, not stored
 CONF_IBEACONS = "ibeacons"  # options: one "Name, UUID[, major[, minor]]" per line
 
 SIGNAL_SEEN = f"{DOMAIN}_seen_{{entry_id}}"

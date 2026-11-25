@@ -42,9 +42,10 @@
       "init": {
         "data": {
           "timeout": "Timeout prítomnosti (minúty)",
-          "ibeacons": "iBeacony (jeden na riadok: Názov, UUID[, major[, minor]])"
+          "ibeacons": "iBeacony (jeden na riadok: Názov, UUID[, major[, minor]])",
+          "regenerate_webhook": "Vygenerovať novú URL webhooku (stará prestane fungovať)"
         },
-        "description": "Príklad riadku iBeaconu: `Kľúče od auta, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6, 1, 2` (vynechaný major/minor = ľubovoľný). Text za # je komentár."
+        "description": "Webhook pre apku Tile2HA v telefóne (netreba token; uchovaj ho v tajnosti): `{webhook_url}`\n\nPríklad riadku iBeaconu: `Kľúče od auta, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6, 1, 2` (vynechaný major/minor = ľubovoľný). Text za # je komentár."
       }
     },
     "error": {

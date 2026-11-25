@@ -3,18 +3,20 @@ from __future__ import annotations
 
 import logging
 import time
+from http import HTTPStatus
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 
 import voluptuous as vol
+from aiohttp import web
 
-from homeassistant.components import bluetooth
+from homeassistant.components import bluetooth, webhook
 from homeassistant.components.bluetooth import (
     BluetoothCallbackMatcher, BluetoothChange, BluetoothScanningMode, BluetoothServiceInfoBleak)
 from homeassistant.components.zone import ENTITY_ID_HOME as ZONE_HOME
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_GPS_ACCURACY, ATTR_LATITUDE, ATTR_LONGITUDE
+from homeassistant.const import ATTR_GPS_ACCURACY, ATTR_LATITUDE, ATTR_LONGITUDE, CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
@@ -22,6 +24,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 
 from . import ibeacon
 from .const import (BATTERY_INTERVAL_HOURS, CONF_BATTERY_ENABLED, CONF_EMAIL, CONF_IBEACONS, CONF_PASSWORD,
@@ -126,36 +129,90 @@ def _resolve_location(hass: HomeAssistant, data: dict) -> Location | None:
     return Location(float(lat), float(lon), float(attrs.get(ATTR_GPS_ACCURACY) or 0))
 
 
+def _report_tile(hass: HomeAssistant, entries: list[TileBleConfigEntry], data: dict) -> bool:
+    """Feed a Tile advertisement captured outside HA (a Linux box running bleak, a phone)."""
+    try:
+        sd = bytes.fromhex(data["service_data"])
+    except ValueError as err:
+        raise ServiceValidationError(f"service_data is not valid hex: {err}") from err
+    location = _resolve_location(hass, data)
+    matched = False
+    for entry in entries:
+        matched |= entry.runtime_data.process(sd, data["rssi"], data["address"], data["source"], None,
+                                              data["zone"], location)
+    return matched
+
+
+def _report_ibeacon(hass: HomeAssistant, entries: list[TileBleConfigEntry], data: dict) -> bool:
+    """Feed an iBeacon advertisement captured outside HA."""
+    try:
+        uuid = normalize_uuid(data["uuid"])
+    except ValueError as err:
+        raise ServiceValidationError(f"uuid is not a valid UUID: {err}") from err
+    location = _resolve_location(hass, data)
+    matched = False
+    for entry in entries:
+        matched |= entry.runtime_data.process_ibeacon(
+            uuid, data["major"], data["minor"], data["rssi"], data["address"], data["source"], None,
+            data["zone"], location)
+    return matched
+
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     async def _report(call: ServiceCall) -> None:
-        """Feed a Tile advertisement captured outside HA (a Linux box running bleak, a phone)."""
-        try:
-            sd = bytes.fromhex(call.data["service_data"])
-        except ValueError as err:
-            raise ServiceValidationError(f"service_data is not valid hex: {err}") from err
-        location = _resolve_location(hass, call.data)
-        for entry in hass.config_entries.async_loaded_entries(DOMAIN):
-            entry.runtime_data.process(sd, call.data["rssi"], call.data["address"], call.data["source"], None,
-                                       call.data["zone"], location)
+        _report_tile(hass, hass.config_entries.async_loaded_entries(DOMAIN), call.data)
 
-    async def _report_ibeacon(call: ServiceCall) -> None:
-        """Feed an iBeacon advertisement captured outside HA."""
-        try:
-            uuid = normalize_uuid(call.data["uuid"])
-        except ValueError as err:
-            raise ServiceValidationError(f"uuid is not a valid UUID: {err}") from err
-        location = _resolve_location(hass, call.data)
-        for entry in hass.config_entries.async_loaded_entries(DOMAIN):
-            entry.runtime_data.process_ibeacon(
-                uuid, call.data["major"], call.data["minor"], call.data["rssi"], call.data["address"],
-                call.data["source"], None, call.data["zone"], location)
+    async def _report_beacon(call: ServiceCall) -> None:
+        _report_ibeacon(hass, hass.config_entries.async_loaded_entries(DOMAIN), call.data)
 
     hass.services.async_register(DOMAIN, SERVICE_REPORT_ADVERTISEMENT, _report, schema=REPORT_SCHEMA)
-    hass.services.async_register(DOMAIN, SERVICE_REPORT_IBEACON, _report_ibeacon, schema=REPORT_IBEACON_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_REPORT_IBEACON, _report_beacon, schema=REPORT_IBEACON_SCHEMA)
     return True
 
 
+async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: web.Request) -> web.Response:
+    """Mobile scanner without an HA token: POST {"type": "tile"|"ibeacon"|"ping", ...service fields}.
+
+    The webhook id is the secret; it only allows feeding sightings into this entry.
+    """
+    entry = next((e for e in hass.config_entries.async_loaded_entries(DOMAIN)
+                  if e.data.get(CONF_WEBHOOK_ID) == webhook_id), None)
+    if entry is None:
+        return web.json_response({"error": "not loaded"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+    try:
+        body = await request.json()
+    except ValueError:
+        return web.json_response({"error": "invalid JSON"}, status=HTTPStatus.BAD_REQUEST)
+    if not isinstance(body, dict):
+        return web.json_response({"error": "expected a JSON object"}, status=HTTPStatus.BAD_REQUEST)
+    kind = body.pop("type", None)
+    handlers = {"tile": (REPORT_SCHEMA, _report_tile), "ibeacon": (REPORT_IBEACON_SCHEMA, _report_ibeacon)}
+    if kind == "ping":
+        return web.json_response({"ok": True, "tiles": len(entry.runtime_data.tiles),
+                                  "beacons": len(entry.runtime_data.beacons)})
+    if kind not in handlers:
+        return web.json_response({"error": f"unknown type {kind!r}"}, status=HTTPStatus.BAD_REQUEST)
+    schema, handler = handlers[kind]
+    try:
+        matched = handler(hass, [entry], schema(body))
+    except (vol.Invalid, ServiceValidationError) as err:
+        return web.json_response({"error": str(err)}, status=HTTPStatus.BAD_REQUEST)
+    return web.json_response({"matched": matched})
+
+
+def webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
+    """Full webhook URL for the app; prefers the external URL (the phone is mostly away from home)."""
+    try:
+        base = get_url(hass, prefer_external=True, allow_cloud=True)
+    except NoURLAvailableError:
+        return webhook.async_generate_path(webhook_id)
+    return base + webhook.async_generate_path(webhook_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: TileBleConfigEntry) -> bool:
+    if CONF_WEBHOOK_ID not in entry.data:
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_WEBHOOK_ID: webhook.async_generate_id()})
     tiles = entry.data[CONF_TILES]
     table = await hass.async_add_executor_job(_build_table, tiles)
     try:
@@ -256,6 +313,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: TileBleConfigEntry) -> b
         entry.async_on_unload(async_track_time_interval(
             hass, _refresh_battery, timedelta(hours=BATTERY_INTERVAL_HOURS)))
         entry.async_create_background_task(hass, _refresh_battery(), "tile_ble battery refresh")
+
+    # the options flow may replace the id; unregister the one registered here
+    webhook_id = entry.data[CONF_WEBHOOK_ID]
+    webhook.async_register(hass, DOMAIN, "Tile BLE mobile scanner", webhook_id, _handle_webhook,
+                           local_only=False, allowed_methods=["POST"])
+    entry.async_on_unload(lambda: webhook.async_unregister(hass, webhook_id))
 
     _remove_stale_beacon_devices(hass, entry, data)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

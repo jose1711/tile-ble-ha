@@ -42,9 +42,10 @@
       "init": {
         "data": {
           "timeout": "Presence timeout (minutes)",
-          "ibeacons": "iBeacons (one per line: Name, UUID[, major[, minor]])"
+          "ibeacons": "iBeacons (one per line: Name, UUID[, major[, minor]])",
+          "regenerate_webhook": "Regenerate the webhook URL (the old one stops working)"
         },
-        "description": "Example iBeacon line: `Car keys, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6, 1, 2` (omitted major/minor = any). Text after # is a comment."
+        "description": "Webhook for the Tile2HA phone app (no access token needed; keep it secret): `{webhook_url}`\n\nExample iBeacon line: `Car keys, 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6, 1, 2` (omitted major/minor = any). Text after # is a comment."
       }
     },
     "error": {
