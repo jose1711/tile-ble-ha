@@ -20,9 +20,17 @@ your Tiles or iBeacons it tells HA where the phone was.
 
   Connecting to Wi-Fi wakes the app; disconnecting does not, so after leaving an excluded network the
   watchdog (every ~15 min) restarts the scan - that is the worst-case delay.
-- **No GPS.** Location is either the platform *network* location (Wi-Fi/cell towers, typically
-  50-5000 m) or nothing at all: with `source_tracker` HA takes the coordinates from the phone's HA
-  Companion app tracker.
+- **Location the phone already has.** Android caches the last fix of every provider (gps, network,
+  fused, passive), whoever requested it - the HA Companion app, maps, ... The app takes the best
+  cached fix not older than *max age* (default 15 min; accuracy plus ~80 m per minute of age decides
+  between an old GPS fix and a newer coarse one). That costs nothing and never turns GPS on.
+  Location modes:
+  - *Len source_tracker* - no location from the phone; HA takes the coordinates from the phone's HA
+    Companion app tracker.
+  - *Len uložená poloha* - cached fix only, never a new one; without a fresh enough cached fix the
+    report goes out with `source_tracker` only (if set).
+  - *Uložená, inak sieťová* - cached fix, otherwise one network fix (Wi-Fi/cell towers, typically
+    50-5000 m, Android 11+).
 
 Tiles of other people also wake the app (it has no Tile keys; HA does the matching and ignores
 them), so in a busy city the app wakes a bit more often.

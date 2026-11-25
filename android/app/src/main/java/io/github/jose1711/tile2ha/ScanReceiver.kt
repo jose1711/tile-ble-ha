@@ -73,7 +73,7 @@ class ScanReceiver : BroadcastReceiver() {
         if (due.isEmpty()) return
 
         val zone = rule?.zone  // on a "SSID = zone.x" network: report the zone, no location lookup
-        val loc = if (zone == null && s.locationMode == LocationMode.NETWORK) Locator.networkLocation(ctx) else null
+        val loc = if (zone == null) Locator.locate(ctx, s.locationMode, s.maxLocationAgeMin) else null
         if (zone == null && loc == null && s.sourceTracker.isEmpty()) {
             s.log("${due.size}× neodoslané: bez polohy a bez source_tracker")
             return
@@ -99,7 +99,8 @@ class ScanReceiver : BroadcastReceiver() {
                 is Report.IBeacon -> "iBeacon ${r.uuid.take(8)}…/${r.major}/${r.minor}"
             }
             val where = zone?.let { " @$it" } ?: loc?.let {
-                String.format(Locale.ROOT, " @%.4f,%.4f ±%dm", it.latitude, it.longitude, it.accuracy.toInt())
+                String.format(Locale.ROOT, " @%.4f,%.4f ±%dm %s %dmin", it.latitude, it.longitude,
+                    it.accuracy.toInt(), it.provider ?: "?", Locator.ageMs(it) / 60_000)
             } ?: " @${s.sourceTracker}"
             if (code in 200..299) {
                 s.markSent(r.key, now)

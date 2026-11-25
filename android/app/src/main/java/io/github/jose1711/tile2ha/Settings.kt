@@ -8,7 +8,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-enum class LocationMode { NONE, NETWORK }
+/**
+ * NONE: no location from the phone (HA uses source_tracker); CACHED: only a location Android already
+ * has (from any app), never a new fix; NETWORK: cached if fresh enough, otherwise one network fix.
+ */
+enum class LocationMode { NONE, CACHED, NETWORK }
 
 /** A Wi-Fi rule: zone == null -> do not scan on this network; otherwise scan and report this HA zone. */
 data class WifiRule(val ssid: String, val zone: String?)
@@ -45,6 +49,11 @@ class Settings(context: Context) {
         get() = runCatching { LocationMode.valueOf(p.getString("location_mode", null) ?: "") }
             .getOrDefault(LocationMode.NONE)
         set(v) = p.edit().putString("location_mode", v.name).apply()
+
+    /** How old a cached location (from any app/provider) may be and still be used instead of a new fix. */
+    var maxLocationAgeMin: Int
+        get() = p.getInt("max_location_age_min", 15)
+        set(v) = p.edit().putInt("max_location_age_min", v.coerceIn(1, 1440)).apply()
 
     /** Minimum minutes between two reports of the same tracker/beacon. */
     var intervalMin: Int

@@ -34,7 +34,9 @@ class MainActivity : Activity() {
     private lateinit var tracker: EditText
     private lateinit var interval: EditText
     private lateinit var locNone: RadioButton
+    private lateinit var locCached: RadioButton
     private lateinit var locNetwork: RadioButton
+    private lateinit var maxAge: EditText
     private lateinit var beacons: EditText
     private lateinit var ssids: EditText
     private lateinit var status: TextView
@@ -76,13 +78,21 @@ class MainActivity : Activity() {
         label("Poloha")
         val group = RadioGroup(this)
         locNone = RadioButton(this).apply { id = View.generateViewId(); text = "Len source_tracker (apka polohu nezisťuje)" }
-        locNetwork = RadioButton(this).apply { id = View.generateViewId(); text = "Sieťová poloha telefónu (wifi/BTS, bez GPS)" }
-        group.addView(locNone); group.addView(locNetwork)
-        group.check(if (s.locationMode == LocationMode.NETWORK) locNetwork.id else locNone.id)
+        locCached = RadioButton(this).apply { id = View.generateViewId(); text = "Len uložená poloha (z iných apiek, nikdy nové zisťovanie)" }
+        locNetwork = RadioButton(this).apply { id = View.generateViewId(); text = "Uložená, inak sieťová poloha (wifi/BTS, bez GPS)" }
+        group.addView(locNone); group.addView(locCached); group.addView(locNetwork)
+        group.check(when (s.locationMode) {
+            LocationMode.NETWORK -> locNetwork.id
+            LocationMode.CACHED -> locCached.id
+            LocationMode.NONE -> locNone.id
+        })
         col.addView(group)
+        label("Max. vek uloženej polohy (minúty)")
+        maxAge = field(s.maxLocationAgeMin.toString(), InputType.TYPE_CLASS_NUMBER)
+        hint("Android si pamätá poslednú polohu, ktorú zistila ktorákoľvek apka (aj GPS). Ak je dosť čerstvá, použije sa zadarmo.")
         label("source_tracker (voliteľné)")
         tracker = field(s.sourceTracker)
-        hint("napr. device_tracker.pixel_8 z HA Companion apky. HA z neho vezme súradnice; pri sieťovej polohe slúži ako záloha.")
+        hint("napr. device_tracker.pixel_8 z HA Companion apky. HA z neho vezme súradnice; ak má telefón vlastnú polohu, slúži ako záloha.")
 
         label("Interval hlásenia (minúty na tracker)")
         interval = field(s.intervalMin.toString(), InputType.TYPE_CLASS_NUMBER)
@@ -127,7 +137,12 @@ class MainActivity : Activity() {
         s.token = token.text.toString()
         s.source = source.text.toString().ifBlank { Build.MODEL }
         s.sourceTracker = tracker.text.toString()
-        s.locationMode = if (locNetwork.isChecked) LocationMode.NETWORK else LocationMode.NONE
+        s.locationMode = when {
+            locNetwork.isChecked -> LocationMode.NETWORK
+            locCached.isChecked -> LocationMode.CACHED
+            else -> LocationMode.NONE
+        }
+        s.maxLocationAgeMin = maxAge.text.toString().toIntOrNull() ?: 15
         s.intervalMin = interval.text.toString().toIntOrNull() ?: 5
         val bad = beacons.text.lines().map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }
             .filter { runCatching { UUID.fromString(it) }.isFailure }
