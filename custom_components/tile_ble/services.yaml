@@ -1,0 +1,27 @@
+report_advertisement:
+  fields:
+    service_data:
+      required: true
+      example: "02005034270c2859af20"
+      selector:
+        text:
+    rssi:
+      example: -60
+      selector:
+        number:
+          min: -127
+          max: 20
+          unit_of_measurement: dBm
+    address:
+      example: "06:0D:8C:B5:1E:E2"
+      selector:
+        text:
+    source:
+      example: "nucbox"
+      selector:
+        text:
+    zone:
+      example: "zone.chata"
+      selector:
+        entity:
+          domain: zone

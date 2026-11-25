@@ -11,5 +11,7 @@ CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 BATTERY_INTERVAL_HOURS = 24  # the only place where this integration calls the cloud
 
+SERVICE_REPORT_ADVERTISEMENT = "report_advertisement"
+
 SIGNAL_SEEN = f"{DOMAIN}_seen_{{entry_id}}"
 SIGNAL_BATTERY = f"{DOMAIN}_battery_{{entry_id}}"

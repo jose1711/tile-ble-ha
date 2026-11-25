@@ -45,5 +45,33 @@
         }
       }
     }
+  },
+  "services": {
+    "report_advertisement": {
+      "name": "Report advertisement",
+      "description": "Feed a Tile 0xFEED advertisement captured outside Home Assistant (e.g. by a Linux machine). The tracker is identified by its privateId and its entities are updated as if HA had heard it.",
+      "fields": {
+        "service_data": {
+          "name": "Service data",
+          "description": "Hex of the 0xFEED service data, e.g. 02005034270c2859af20."
+        },
+        "rssi": {
+          "name": "RSSI",
+          "description": "Signal strength in dBm."
+        },
+        "address": {
+          "name": "Address",
+          "description": "BLE MAC address of the advertisement."
+        },
+        "source": {
+          "name": "Source",
+          "description": "Name of the scanner that captured it (shown in the presence sensor's source attribute)."
+        },
+        "zone": {
+          "name": "Zone",
+          "description": "Static zone where the scanner is located (default zone.home). The tracker's device_tracker moves to this zone."
+        }
+      }
+    }
   }
 }

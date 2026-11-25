@@ -62,6 +62,25 @@ or ESPHome device running here. Please verify it yourself and report back if som
 
 Protocol details: `research/protocol-notes.md`.
 
+## Scanners outside HA (`tile_ble.report_advertisement`)
+A machine that is not an HA Bluetooth adapter/proxy (e.g. a Linux box running `bleak`) can feed
+advertisements it captured through the `tile_ble.report_advertisement` service:
+
+```bash
+curl -X POST -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json" \
+  -d '{"service_data": "02005034270c2859af20", "rssi": -60, "address": "06:0D:8C:B5:1E:E2", "source": "nucbox", "zone": "zone.chata"}' \
+  "$HA_URL/api/services/tile_ble/report_advertisement"
+```
+
+`service_data` is the hex of the `0xFEED` service data. The tracker is identified by its privateId
+just like for HA's own adapters, so only the matching tracker's entities are updated (`source` shows
+up on the presence sensor). Ringing still needs HA's own connectable adapter/proxy in range.
+
+Optional `zone` (e.g. `"zone": "zone.chata"`) is the static zone where that scanner is located. Each
+tracker has a `device_tracker` entity that moves to the zone of the scanner that heard it last
+(HA's own adapters/proxies count as `zone.home`) and becomes `not_home` when nobody has heard it within
+the presence timeout. It can be assigned to a `person`.
+
 ## Installation
 Copy `custom_components/tile_ble` into your HA config (or add the repo to HACS as a custom
 repository) and restart HA.
@@ -71,7 +90,7 @@ Skeleton 0.1.0. Import against HA 2026.11.1 works, the unit tests in `tests/` pa
 TOA/MEP frames verified against live captures). The ring protocol is verified outside HA
 (`ring_py_test.py` + `bleak`); the `button` entity has not yet actually been exercised inside HA
 itself. TODO: reauth/key refresh, tests with `pytest-homeassistant-custom-component`,
-device_tracker/Bermuda integration, TRM (RSSI from the tracker).
+Bermuda integration, TRM (RSSI from the tracker).
 
 ## Tools (`tools/`)
 - `fetch_tiles.py` - downloads `tile_uuid`/`auth_key`/`expected_tdt_cmd_config` into `secrets/tiles.json` (kept out of git)

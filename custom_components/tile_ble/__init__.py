@@ -3,25 +3,40 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
+
+import voluptuous as vol
 
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
     BluetoothCallbackMatcher, BluetoothChange, BluetoothScanningMode, BluetoothServiceInfoBleak)
+from homeassistant.components.zone import ENTITY_ID_HOME as ZONE_HOME
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (BATTERY_INTERVAL_HOURS, CONF_BATTERY_ENABLED, CONF_EMAIL, CONF_PASSWORD, CONF_TILES,
-                    SIGNAL_BATTERY, SIGNAL_SEEN, TILE_SERVICE_UUID)
+                    DOMAIN, SERVICE_REPORT_ADVERTISEMENT, SIGNAL_BATTERY, SIGNAL_SEEN, TILE_SERVICE_UUID)
 from .privateid import extract_private_id, private_ids
 from .tile_cloud import TileAuthError, TileRequestError, fetch_battery_statuses
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["binary_sensor", "sensor", "button"]
+PLATFORMS = ["binary_sensor", "sensor", "button", "device_tracker"]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+REPORT_SCHEMA = vol.Schema({
+    vol.Required("service_data"): cv.string,  # hex of the 0xFEED service data
+    vol.Optional("rssi", default=-127): vol.Coerce(int),
+    vol.Optional("address", default=""): cv.string,
+    vol.Optional("source", default="remote"): cv.string,
+    vol.Optional("zone", default=ZONE_HOME): cv.entity_domain("zone"),  # where that scanner is
+})
 
 
 @dataclass
@@ -31,6 +46,7 @@ class Sighting:
     address: str
     source: str
     ctr: int
+    zone: str = ZONE_HOME  # static zone of the scanner that heard it
 
 
 @dataclass
@@ -40,6 +56,8 @@ class TileBleData:
     seen: dict[str, Sighting] = field(default_factory=dict)
     started: float = field(default_factory=time.monotonic)  # setup time (monotonic)
     battery: dict[str, str] = field(default_factory=dict)  # tile_uuid -> "healthy"|"low"|"dead"|"unknown"
+    # (service_data, rssi, address, source, seen_at, zone) -> matched; set in async_setup_entry
+    process: Callable[[bytes, int, str, str, float | None, str], bool] | None = None
 
 
 type TileBleConfigEntry = ConfigEntry[TileBleData]
@@ -53,6 +71,21 @@ def _build_table(tiles: list[dict]) -> dict[bytes, tuple[str, int]]:
     return table
 
 
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    async def _report(call: ServiceCall) -> None:
+        """Feed an advertisement captured outside HA (e.g. a Linux box running bleak)."""
+        try:
+            sd = bytes.fromhex(call.data["service_data"])
+        except ValueError as err:
+            raise ServiceValidationError(f"service_data is not valid hex: {err}") from err
+        for entry in hass.config_entries.async_loaded_entries(DOMAIN):
+            entry.runtime_data.process(sd, call.data["rssi"], call.data["address"], call.data["source"], None,
+                                       call.data["zone"])
+
+    hass.services.async_register(DOMAIN, SERVICE_REPORT_ADVERTISEMENT, _report, schema=REPORT_SCHEMA)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: TileBleConfigEntry) -> bool:
     tiles = entry.data[CONF_TILES]
     table = await hass.async_add_executor_job(_build_table, tiles)
@@ -61,18 +94,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: TileBleConfigEntry) -> b
     signal = SIGNAL_SEEN.format(entry_id=entry.entry_id)
 
     @callback
-    def _process(info: BluetoothServiceInfoBleak, seen_at: float | None = None) -> None:
-        sd = info.service_data.get(TILE_SERVICE_UUID)
+    def _process_raw(sd: bytes | None, rssi: int, address: str, source: str,
+                     seen_at: float | None, zone: str = ZONE_HOME) -> bool:
         pid = extract_private_id(sd) if sd else None
         if pid is None or (hit := table.get(pid)) is None:
-            return
+            return False
         tile_uuid, ctr = hit
         last_seen = time.monotonic() if seen_at is None else seen_at
         prev = data.seen.get(tile_uuid)
         if prev is not None and prev.last_seen > last_seen:
-            return
-        data.seen[tile_uuid] = Sighting(last_seen, info.rssi, info.address, info.source, ctr)
+            return True
+        data.seen[tile_uuid] = Sighting(last_seen, rssi, address, source, ctr, zone)
         async_dispatcher_send(hass, signal, tile_uuid)
+        return True
+
+    data.process = _process_raw
+
+    @callback
+    def _process(info: BluetoothServiceInfoBleak, seen_at: float | None = None) -> None:
+        _process_raw(info.service_data.get(TILE_SERVICE_UUID), info.rssi, info.address, info.source, seen_at)
 
     @callback
     def _adv(info: BluetoothServiceInfoBleak, change: BluetoothChange) -> None:

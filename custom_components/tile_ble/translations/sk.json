@@ -45,5 +45,33 @@
         }
       }
     }
+  },
+  "services": {
+    "report_advertisement": {
+      "name": "Nahlásiť reklamu",
+      "description": "Odovzdá reklamu Tile 0xFEED zachytenú mimo Home Assistant (napr. linuxovým počítačom). Tracker sa určí podľa privateId a jeho entity sa aktualizujú, ako keby ju zachytil HA.",
+      "fields": {
+        "service_data": {
+          "name": "Service data",
+          "description": "Hex service data 0xFEED, napr. 02005034270c2859af20."
+        },
+        "rssi": {
+          "name": "RSSI",
+          "description": "Sila signálu v dBm."
+        },
+        "address": {
+          "name": "Adresa",
+          "description": "BLE MAC adresa reklamy."
+        },
+        "source": {
+          "name": "Zdroj",
+          "description": "Názov skenera, ktorý ju zachytil (atribút source senzora prítomnosti)."
+        },
+        "zone": {
+          "name": "Zóna",
+          "description": "Statická zóna, v ktorej je skener (predvolene zone.home). device_tracker trackera sa presunie do tejto zóny."
+        }
+      }
+    }
   }
 }
