@@ -33,6 +33,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".FindActivity"
+            android:exported="false"
+            android:label="Hľadať" />
+
         <!-- BLE scan results (PendingIntent scan: the system wakes us only for matching advertisements) -->
         <receiver android:name=".ScanReceiver" android:exported="false" />
 

@@ -109,6 +109,7 @@ class MainActivity : Activity() {
                 ssids.setText((ssids.text.toString().trimEnd() + "\n" + ssid + " = zone.home").trim())
         }
 
+        button("Hľadať trackery (signál)") { save(); startActivity(Intent(this, FindActivity::class.java)) }
         button("Uložiť a spustiť") { save(); s.enabled = true; ScanController.refresh(this, "uložené"); render() }
         button("Zastaviť") { s.enabled = false; ScanController.refresh(this, "používateľ"); render() }
         button("Otestovať spojenie s HA") { save(); testConnection() }

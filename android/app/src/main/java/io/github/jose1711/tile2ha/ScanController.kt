@@ -56,14 +56,16 @@ object ScanController {
 
     fun filters(settings: Settings): List<ScanFilter> {
         val list = mutableListOf(ScanFilter.Builder().setServiceUuid(TILE_SERVICE).build())
-        for (uuid in settings.ibeaconUuids) {
-            // iBeacon: 02 15 <uuid:16> <major:2> <minor:2> <tx:1>; match type+length and the UUID
-            val data = ByteBuffer.allocate(23).put(0x02.toByte()).put(0x15.toByte())
-                .putLong(uuid.mostSignificantBits).putLong(uuid.leastSignificantBits).array()
-            val mask = ByteArray(23) { i -> if (i < 18) 0xFF.toByte() else 0 }
-            list += ScanFilter.Builder().setManufacturerData(APPLE_ID, data, mask).build()
-        }
+        for (uuid in settings.ibeaconUuids) list += ibeaconFilter(uuid)
         return list
+    }
+
+    /** iBeacon: 02 15 <uuid:16> <major:2> <minor:2> <tx:1>; match type+length and the UUID. */
+    fun ibeaconFilter(uuid: UUID): ScanFilter {
+        val data = ByteBuffer.allocate(23).put(0x02.toByte()).put(0x15.toByte())
+            .putLong(uuid.mostSignificantBits).putLong(uuid.leastSignificantBits).array()
+        val mask = ByteArray(23) { i -> if (i < 18) 0xFF.toByte() else 0 }
+        return ScanFilter.Builder().setManufacturerData(APPLE_ID, data, mask).build()
     }
 
     /** Bring the scan into the state the settings ask for. Safe to call any time, from anywhere. */

@@ -290,3 +290,31 @@ async def test_webhook(hass, hass_client_no_auth):
     assert (await client.post(url, json={"type": "ping"})).status == 200  # unknown webhook: HA answers 200
     assert "tiles" not in await (await client.post(url, json={"type": "ping"})).text()
     assert (await (await client.post(f"/api/webhook/{new}", json={"type": "ping"})).json())["ok"]
+
+
+async def test_webhook_trackables(hass, hass_client_no_auth):
+    """The app's tracker list: names, beacon ids and privateIds (windowed once the phase is known)."""
+    assert await async_setup_component(hass, "webhook", {})
+    entry, _ = await _setup(hass, {CONF_IBEACONS: BEACONS})
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{entry.data['webhook_id']}"
+    ids = {c: p.hex() for p, c in private_ids(KEY, TILES[0]["tile_uuid"]).items()}
+
+    # phase unknown -> the whole cycle, no expiry
+    body = await (await client.post(url, json={"type": "trackables"})).json()
+    tile = body["tiles"][0]
+    assert tile["name"] == "Wallet" and len(tile["ids"]) == 8641 and tile["valid_until"] is None
+    assert "auth_key" not in str(body)
+    assert {b["name"] for b in body["beacons"]} == {"Car keys", "Any bag"}
+
+    # heard at ctr 7 -> +-2 days around it, wrapping over the end of the cycle
+    await _report(hass)
+    tile = (await (await client.post(url, json={"type": "trackables", "window_days": 1})).json())["tiles"][0]
+    assert len(tile["ids"]) == 2 * 192 + 1 and tile["valid_until"]
+    assert ids[7] in tile["ids"] and ids[8640] in tile["ids"] and ids[199] in tile["ids"]
+    assert ids[200] not in tile["ids"] and ids[8440] not in tile["ids"]
+
+    # window_days 0 -> whole table again; invalid -> 400
+    tile = (await (await client.post(url, json={"type": "trackables", "window_days": 0})).json())["tiles"][0]
+    assert len(tile["ids"]) == 8641
+    assert (await client.post(url, json={"type": "trackables", "window_days": -1})).status == 400

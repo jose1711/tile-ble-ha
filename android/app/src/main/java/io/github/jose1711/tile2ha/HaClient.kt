@@ -33,6 +33,14 @@ class HaClient(private val webhookUrl: String) {
         return code
     }
 
+    /** Tracker list with names and Tile privateIds (see tile_ble trackables_payload); null on error. */
+    fun trackables(windowDays: Int): JSONObject? {
+        val code = post(JSONObject().put("type", "trackables").put("window_days", windowDays))
+        if (code != 200) return null
+        return runCatching { JSONObject(lastBody).takeIf { it.has("tiles") } }.getOrNull()
+            ?: null.also { lastError = "neznámy webhook alebo stará verzia tile_ble" }
+    }
+
     private fun post(body: JSONObject): Int {
         lastError = null
         lastBody = ""
@@ -53,7 +61,7 @@ class HaClient(private val webhookUrl: String) {
             if (code >= 400) lastError = runCatching {
                 conn.errorStream?.bufferedReader()?.readText()?.take(200)
             }.getOrNull()
-            else lastBody = runCatching { conn.inputStream.bufferedReader().readText().take(1000) }.getOrDefault("")
+            else lastBody = runCatching { conn.inputStream.bufferedReader().readText() }.getOrDefault("")
             code
         } catch (e: Exception) {
             lastError = e.javaClass.simpleName + ": " + e.message

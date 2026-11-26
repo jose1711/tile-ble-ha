@@ -25,13 +25,15 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from . import ibeacon
 from .const import (BATTERY_INTERVAL_HOURS, CONF_BATTERY_ENABLED, CONF_EMAIL, CONF_IBEACONS, CONF_PASSWORD,
                     CONF_TILES, DOMAIN, SERVICE_REPORT_ADVERTISEMENT, SERVICE_REPORT_IBEACON, SIGNAL_BATTERY,
                     SIGNAL_SEEN, TILE_SERVICE_UUID)
 from .ibeacon import normalize_uuid
-from .privateid import extract_private_id, private_ids
+from .privateid import COUNTER_MAX, extract_private_id, private_ids
 from .tile_cloud import TileAuthError, TileRequestError, fetch_battery_statuses
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,6 +97,8 @@ class TileBleData:
     process: Callable[[bytes, int, str, str, float | None, str, Location | None], bool] | None = None
     # (uuid, major, minor, rssi, address, source, seen_at, zone, location) -> matched
     process_ibeacon: Callable[..., bool] | None = None
+    # tile_uuid -> (ctr, wall-clock time) of the last sighting; persisted, so the phase survives a restart
+    phase: dict[str, tuple[int, float]] = field(default_factory=dict)
 
     @property
     def trackables(self) -> dict[str, dict]:
@@ -187,6 +191,13 @@ async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: web.Req
         return web.json_response({"error": "expected a JSON object"}, status=HTTPStatus.BAD_REQUEST)
     kind = body.pop("type", None)
     handlers = {"tile": (REPORT_SCHEMA, _report_tile), "ibeacon": (REPORT_IBEACON_SCHEMA, _report_ibeacon)}
+    if kind == "trackables":
+        try:
+            window = vol.Schema({vol.Optional("window_days", default=1): vol.All(
+                vol.Coerce(int), vol.Range(min=0, max=90))}, extra=vol.REMOVE_EXTRA)(body)["window_days"]
+        except vol.Invalid as err:
+            return web.json_response({"error": str(err)}, status=HTTPStatus.BAD_REQUEST)
+        return web.json_response(trackables_payload(entry.runtime_data, window, time.time()))
     if kind == "ping":
         return web.json_response({"ok": True, "tiles": len(entry.runtime_data.tiles),
                                   "beacons": len(entry.runtime_data.beacons)})
@@ -198,6 +209,37 @@ async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: web.Req
     except (vol.Invalid, ServiceValidationError) as err:
         return web.json_response({"error": str(err)}, status=HTTPStatus.BAD_REQUEST)
     return web.json_response({"matched": matched})
+
+
+CTR_PERIOD = 900  # s; the privateId counter advances every 15 min
+CTR_PER_DAY = 86400 // CTR_PERIOD
+
+
+def trackables_payload(data: TileBleData, window_days: int, now: float) -> dict:
+    """What the phone app needs to recognise and name the trackers (never the auth_key).
+
+    Tiles: privateIds (hex) for the current counter +-window_days (+1 day for clock drift) when the
+    phase is known from a sighting, else the whole 90-day cycle. valid_until: when to refresh.
+    """
+    by_tile: dict[str, dict[int, bytes]] = {}
+    for pid, (tile_uuid, ctr) in data.table.items():
+        by_tile.setdefault(tile_uuid, {})[ctr] = pid
+    tiles = []
+    for tile_uuid, tile in data.tiles.items():
+        ids = by_tile.get(tile_uuid, {})
+        valid_until = None
+        if window_days and (ph := data.phase.get(tile_uuid)) is not None:
+            cur = (ph[0] + int((now - ph[1]) // CTR_PERIOD)) % COUNTER_MAX
+            span = (window_days + 1) * CTR_PER_DAY
+            ctrs = [(cur + d) % COUNTER_MAX for d in range(-span, span + 1)]
+            valid_until = dt_util.utc_from_timestamp(now + window_days * 43200).isoformat()
+        else:
+            ctrs = sorted(ids)
+        tiles.append({"key": tile_uuid, "name": tile.get("name", tile_uuid),
+                      "ids": [ids[c].hex() for c in ctrs if c in ids], "valid_until": valid_until})
+    beacons = [{"key": k, "name": b["name"], "uuid": b["uuid"], "major": b["major"], "minor": b["minor"]}
+               for k, b in data.beacons.items()]
+    return {"tiles": tiles, "beacons": beacons}
 
 
 def webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
@@ -224,6 +266,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TileBleConfigEntry) -> b
                        beacons={b["tile_uuid"]: b for b in beacons})
     beacon_lookup = ibeacon.build_lookup(beacons)
     entry.runtime_data = data
+    store: Store[dict] = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.phase")
+    data.phase = {k: (int(v[0]), float(v[1])) for k, v in ((await store.async_load()) or {}).items()
+                  if k in data.tiles}
     signal = SIGNAL_SEEN.format(entry_id=entry.entry_id)
 
     @callback
@@ -236,6 +281,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TileBleConfigEntry) -> b
             return
         data.seen[key] = Sighting(last_seen, rssi, address, source, ctr, zone, location,
                                   time.time() - (now - last_seen))
+        if key in data.tiles:
+            data.phase[key] = (ctr, data.seen[key].wall)
+            store.async_delay_save(lambda: {k: list(v) for k, v in data.phase.items()}, 60)
         async_dispatcher_send(hass, signal, key)
 
     @callback
