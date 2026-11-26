@@ -129,6 +129,11 @@ presence timeout and across HA restarts ("where did I leave my keys"), until a n
 them. The `last_seen` attribute says when that was. Presence (`binary_sensor`) still turns off after
 the timeout.
 
+A static scanner (HA's adapters/proxies, or `zone`) knows only the zone. Its sighting sets the state to
+that zone (`not_home` after the timeout) but keeps the tracker on the map: the previous coordinates
+stay if they lie inside the zone (e.g. the phone's fix at home), otherwise the zone center is used with
+the zone radius as `gps_accuracy`. The `scanner_zone` attribute marks such a sighting.
+
 The Android app **Tile2HA** in [`android/`](android/README.md) does this with little battery use: the
 scan is filtered in the Bluetooth controller and the app is woken only when a Tile/iBeacon is heard.
 Per Wi-Fi network it can report a fixed zone instead of a location (`HomeWifi = zone.home`) or skip
