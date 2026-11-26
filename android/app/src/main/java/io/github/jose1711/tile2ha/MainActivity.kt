@@ -122,7 +122,7 @@ class MainActivity : Activity() {
         col.addView(log)
         button("Obnoviť záznam") { render() }
 
-        setContentView(ScrollView(this).apply { addView(col) })
+        setContentView(ScrollView(this).apply { addView(col) }.padForSystemBars())
     }
 
     override fun onResume() {

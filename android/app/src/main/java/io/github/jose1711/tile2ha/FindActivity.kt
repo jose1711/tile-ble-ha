@@ -68,7 +68,7 @@ class FindActivity : Activity() {
         })
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(list)
-        setContentView(ScrollView(this).apply { addView(col) })
+        setContentView(ScrollView(this).apply { addView(col) }.padForSystemBars())
 
         val cached = runCatching { JSONObject(cache.readText()) }.getOrNull()
         if (cached != null) load(cached)
