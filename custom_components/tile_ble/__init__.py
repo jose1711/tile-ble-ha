@@ -1,6 +1,7 @@
 """Tile BLE (local): recognizes Tile trackers by the privateId derived from authKey (plus optional iBeacons)."""
 from __future__ import annotations
 
+import base64
 import logging
 import time
 from http import HTTPStatus
@@ -29,6 +30,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from . import ibeacon
+from . import toa_protocol as toa
 from .const import (BATTERY_INTERVAL_HOURS, CONF_BATTERY_ENABLED, CONF_EMAIL, CONF_IBEACONS, CONF_PASSWORD,
                     CONF_TILES, DOMAIN, SERVICE_REPORT_ADVERTISEMENT, SERVICE_REPORT_IBEACON, SIGNAL_BATTERY,
                     SIGNAL_SEEN, TILE_SERVICE_UUID)
@@ -198,6 +200,12 @@ async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: web.Req
         except vol.Invalid as err:
             return web.json_response({"error": str(err)}, status=HTTPStatus.BAD_REQUEST)
         return web.json_response(trackables_payload(entry.runtime_data, window, time.time()))
+    if kind == "session_key":
+        try:
+            req = SESSION_KEY_SCHEMA(body)
+            return web.json_response(session_key_payload(entry.runtime_data, req))
+        except (vol.Invalid, ValueError) as err:
+            return web.json_response({"error": str(err)}, status=HTTPStatus.BAD_REQUEST)
     if kind == "ping":
         return web.json_response({"ok": True, "tiles": len(entry.runtime_data.tiles),
                                   "beacons": len(entry.runtime_data.beacons)})
@@ -209,6 +217,33 @@ async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: web.Req
     except (vol.Invalid, ServiceValidationError) as err:
         return web.json_response({"error": str(err)}, status=HTTPStatus.BAD_REQUEST)
     return web.json_response({"matched": matched})
+
+
+_HEX = vol.All(cv.string, vol.Match(r"^([0-9a-fA-F]{2})*$"))
+SESSION_KEY_SCHEMA = vol.Schema({
+    vol.Required("key"): cv.string,               # tile_uuid
+    vol.Required("rand_a"): _HEX,                 # 14 B chosen by the phone
+    vol.Required("channel_prefix"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+    vol.Required("channel_data"): _HEX,           # from the tracker's OPEN_CHANNEL response
+    vol.Required("local_token"): _HEX,            # 4 B chosen by the phone
+}, extra=vol.REMOVE_EXTRA)
+
+
+def session_key_payload(data: TileBleData, req: dict) -> dict:
+    """Key of one authenticated BLE channel, so a phone can ring a Tile without ever getting its auth_key.
+
+    It is HMAC(auth_key, randA | channelData | channelPrefix | localToken)[:16] (see ring_ble), valid only
+    for the channel opened with these values.
+    """
+    if (tile := data.tiles.get(req["key"])) is None:
+        raise ValueError(f"unknown tile {req['key']}")
+    rand_a, channel_data = bytes.fromhex(req["rand_a"]), bytes.fromhex(req["channel_data"])
+    local_token = bytes.fromhex(req["local_token"])
+    if len(rand_a) != 14 or len(local_token) != 4:
+        raise ValueError("rand_a must be 14 B and local_token 4 B")
+    key = toa.generate_hmac(base64.b64decode(tile["auth_key"]), rand_a, channel_data,
+                            req["channel_prefix"], local_token)[:16]  # ValueError when > 32 B
+    return {"session_key": key.hex(), "expected_tdt_cmd_config": tile.get("expected_tdt_cmd_config")}
 
 
 CTR_PERIOD = 900  # s; the privateId counter advances every 15 min

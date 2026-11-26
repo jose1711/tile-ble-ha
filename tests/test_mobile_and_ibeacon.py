@@ -318,3 +318,20 @@ async def test_webhook_trackables(hass, hass_client_no_auth):
     tile = (await (await client.post(url, json={"type": "trackables", "window_days": 0})).json())["tiles"][0]
     assert len(tile["ids"]) == 8641
     assert (await client.post(url, json={"type": "trackables", "window_days": -1})).status == 400
+
+
+async def test_webhook_session_key(hass, hass_client_no_auth):
+    """Per-channel key for ringing from the phone; same derivation as ring_ble, auth_key stays in HA."""
+    from custom_components.tile_ble import toa_protocol as toa
+    assert await async_setup_component(hass, "webhook", {})
+    entry, _ = await _setup(hass)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{entry.data['webhook_id']}"
+    req = {"type": "session_key", "key": TILES[0]["tile_uuid"], "rand_a": "11" * 14,
+           "channel_prefix": 5, "channel_data": "2233", "local_token": "aabbccdd"}
+    body = await (await client.post(url, json=req)).json()
+    want = toa.generate_hmac(base64.b64decode(KEY), bytes.fromhex("11" * 14), bytes.fromhex("2233"), 5,
+                             bytes.fromhex("aabbccdd"))[:16].hex()
+    assert body == {"session_key": want, "expected_tdt_cmd_config": None}
+    for bad in ({"key": "nope"}, {"rand_a": "11"}, {"channel_data": "zz"}, {"channel_data": "00" * 20}):
+        assert (await client.post(url, json={**req, **bad})).status == 400

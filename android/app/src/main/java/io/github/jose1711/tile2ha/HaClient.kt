@@ -41,6 +41,17 @@ class HaClient(private val webhookUrl: String) {
             ?: null.also { lastError = "neznámy webhook alebo stará verzia tile_ble" }
     }
 
+    /** Key of one authenticated Tile channel (tile_ble webhook "session_key"); null on error. */
+    fun sessionKey(key: String, randA: ByteArray, channelPrefix: Int, channelData: ByteArray,
+                   localToken: ByteArray): JSONObject? {
+        val code = post(JSONObject().put("type", "session_key").put("key", key)
+            .put("rand_a", TileRinger.toHex(randA)).put("channel_prefix", channelPrefix)
+            .put("channel_data", TileRinger.toHex(channelData)).put("local_token", TileRinger.toHex(localToken)))
+        if (code != 200) return null
+        return runCatching { JSONObject(lastBody).takeIf { it.has("session_key") } }.getOrNull()
+            ?: null.also { lastError = "neznámy webhook alebo stará verzia tile_ble" }
+    }
+
     private fun post(body: JSONObject): Int {
         lastError = null
         lastBody = ""

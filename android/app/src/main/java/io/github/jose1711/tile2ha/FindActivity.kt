@@ -1,12 +1,15 @@
 package io.github.jose1711.tile2ha
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.content.pm.PackageManager
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -30,9 +33,10 @@ import kotlin.concurrent.thread
  * leaves HA. The list is cached in filesDir, so the screen works offline too.
  */
 class FindActivity : Activity() {
-    private class Row(val name: String, val view: TextView, val bar: ProgressBar) {
+    private class Row(val name: String, val view: TextView, val bar: ProgressBar, val ring: Button?) {
         var rssi = Double.NaN       // smoothed
         var last = 0L               // elapsedRealtime of the last advertisement
+        var address: String? = null // MAC of the last advertisement (Tiles rotate it)
     }
 
     private data class Beacon(val key: String, val uuid: String, val major: Int?, val minor: Int?)
@@ -45,6 +49,7 @@ class FindActivity : Activity() {
     private var beacons = listOf<Beacon>()
     private val ui = Handler(Looper.getMainLooper())
     private var scanning = false
+    @Volatile private var ringing = false
 
     private val cache get() = File(filesDir, "trackables.json")
 
@@ -123,7 +128,7 @@ class FindActivity : Activity() {
         for (i in 0 until (tiles?.length() ?: 0)) {
             val t = tiles!!.getJSONObject(i)
             val key = t.getString("key")
-            addRow(key, t.optString("name", key))
+            addRow(key, t.optString("name", key), tile = true)
             val arr = t.getJSONArray("ids")
             for (j in 0 until arr.length()) ids[arr.getString(j)] = key
         }
@@ -143,12 +148,48 @@ class FindActivity : Activity() {
         if (scanning) { stopScan(); startScan() }  // the beacon UUID filters may have changed
     }
 
-    private fun addRow(key: String, name: String) {
+    private fun addRow(key: String, name: String, tile: Boolean = false) {
         val tv = TextView(this).apply { textSize = 16f; setPadding(0, 24, 0, 0) }
         val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 60 }
         list.addView(tv)
         list.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        rows[key] = Row(name, tv, bar)
+        val ring = if (tile) Button(this).apply {
+            text = "Zazvoniť"; isEnabled = false
+            setOnClickListener { ring(key) }
+            list.addView(this, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+        } else null
+        rows[key] = Row(name, tv, bar, ring)
+    }
+
+    /** Connect from this phone and ring; the channel key comes from HA, the auth_key stays there. */
+    private fun ring(key: String) {
+        val row = rows[key] ?: return
+        val address = row.address ?: return
+        if (ringing) return
+        if (Build.VERSION.SDK_INT >= 31 &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 3)
+            return
+        }
+        ringing = true
+        stopScan()  // a running low-latency scan slows the connection down
+        thread {
+            val msg = try {
+                TileRinger(this, address, key, HaClient(s.webhookUrl)) { step ->
+                    runOnUiThread { status.text = "${row.name}: $step" }
+                }.ring()
+                "${row.name}: zazvonil"
+            } catch (e: Exception) {
+                "${row.name}: nepodarilo sa – ${e.message}"
+            }
+            s.log(msg)
+            runOnUiThread {
+                status.text = msg
+                ringing = false
+                if (!isFinishing && hasWindowFocus()) startScan()
+            }
+        }
     }
 
     private val callback = object : ScanCallback() {
@@ -183,6 +224,7 @@ class FindActivity : Activity() {
             val row = rows[k] ?: return@runOnUiThread
             row.rssi = if (row.rssi.isNaN()) rssi.toDouble() else row.rssi * 0.7 + rssi * 0.3
             row.last = SystemClock.elapsedRealtime()
+            row.address = r.device.address
         }
     }
 
@@ -199,6 +241,8 @@ class FindActivity : Activity() {
                     row.view.text = "${row.name}: $v dBm  ${hint(v)}" + if (age >= 3) "  (pred ${age}s)" else ""
                     row.bar.progress = (v + 100).coerceIn(0, 60)  // -100 dBm .. -40 dBm
                 }
+                // the MAC rotates with the privateId, so ring only what was heard recently
+                row.ring?.isEnabled = !ringing && row.last != 0L && age <= 60
             }
             ui.postDelayed(this, 500)
         }

@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <!-- Android 12+: no neverForLocation, the scan results are used together with the location -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- connecting to a Tile to ring it -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- BLE scan on <= 11, network location, Wi-Fi SSID (excluded networks) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
