@@ -110,12 +110,26 @@ async def test_coordinates_kept_as_last_known_location(hass):
     assert hass.states.get("device_tracker.wallet").state == "Chata"
     assert hass.states.get("binary_sensor.wallet_presence").state == "off"
 
-    # a static scanner (zone) wins again and drops the coordinates
+    # a static scanner (zone) sets the state; outside that zone the zone center goes on the map
     await _report(hass, zone="zone.home")
     st = hass.states.get("device_tracker.wallet")
-    assert st.state == "home"
-    assert "latitude" not in st.attributes
-    assert st.attributes["source_type"] == "bluetooth_le"
+    assert st.state == "home" and st.attributes["scanner_zone"] == "zone.home"
+    home = hass.states.get("zone.home").attributes
+    assert (st.attributes["latitude"], st.attributes["longitude"]) == (home["latitude"], home["longitude"])
+    assert st.attributes["gps_accuracy"] == home["radius"]
+
+    # a precise fix inside the zone survives the next static sighting
+    near = (home["latitude"] + 0.0003, home["longitude"])  # ~33 m from the center
+    await _report(hass, latitude=near[0], longitude=near[1], gps_accuracy=20)
+    await _report(hass, zone="zone.home")
+    st = hass.states.get("device_tracker.wallet")
+    assert st.state == "home" and (st.attributes["latitude"], st.attributes["gps_accuracy"]) == (near[0], 20)
+
+    # static sighting timed out -> not_home, but still on the map
+    entry.runtime_data.seen[TILES[0]["tile_uuid"]].last_seen = time.monotonic() - 16 * 60
+    hass.data["entity_components"]["device_tracker"].get_entity("device_tracker.wallet")._refresh()
+    st = hass.states.get("device_tracker.wallet")
+    assert st.state == "not_home" and st.attributes["latitude"] == near[0]
 
 
 async def test_source_tracker(hass):
@@ -148,6 +162,19 @@ async def test_last_location_restored(hass):
     assert st.state == "not_home"
     assert (st.attributes["latitude"], st.attributes["longitude"]) == FAR
     assert st.attributes["last_seen"] == "2026-11-20T10:00:00+00:00"
+
+
+async def test_restored_static_sighting(hass):
+    """Last heard by a static scanner before a restart: shown at its spot, away after the startup window."""
+    mock_restore_cache(hass, [State("device_tracker.wallet", "home", {
+        "latitude": CHATA[0], "longitude": CHATA[1], "gps_accuracy": 100, "source": "proxy",
+        "scanner_zone": "zone.chata"})])
+    entry, _ = await _setup(hass)
+    assert hass.states.get("device_tracker.wallet").state == "Chata"
+    entry.runtime_data.started = time.monotonic() - 16 * 60
+    hass.data["entity_components"]["device_tracker"].get_entity("device_tracker.wallet")._refresh()
+    st = hass.states.get("device_tracker.wallet")
+    assert st.state == "not_home" and st.attributes["latitude"] == CHATA[0]
 
 
 # --- iBeacons -------------------------------------------------------------------------------------
