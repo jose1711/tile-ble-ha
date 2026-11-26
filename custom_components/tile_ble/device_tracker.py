@@ -113,6 +113,7 @@ class TileZoneTracker(TileBleEntity, TrackerEntity, RestoreEntity):
                 self._restored = (
                     Location(float(a[ATTR_LATITUDE]), float(a[ATTR_LONGITUDE]), float(a.get(ATTR_GPS_ACCURACY) or 0)),
                     {k: a[k] for k in (ATTR_SOURCE, ATTR_LAST_SEEN, ATTR_SCANNER_ZONE) if k in a})
+                self._last_loc = self._restored[0]  # a zone sighting right after startup may keep it
 
         @callback
         def _seen(tile_uuid: str) -> None:

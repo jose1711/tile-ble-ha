@@ -177,6 +177,17 @@ async def test_restored_static_sighting(hass):
     assert st.state == "not_home" and st.attributes["latitude"] == CHATA[0]
 
 
+async def test_restored_fix_kept_by_zone_sighting(hass):
+    """A phone fix from before a restart survives the first static sighting inside that zone."""
+    near = (CHATA[0] + 0.0003, CHATA[1])
+    mock_restore_cache(hass, [State("device_tracker.wallet", "Chata", {
+        "latitude": near[0], "longitude": near[1], "gps_accuracy": 15, "source": "pixel"})])
+    await _setup(hass)
+    await _report(hass, zone="zone.chata")
+    st = hass.states.get("device_tracker.wallet")
+    assert st.state == "Chata" and (st.attributes["latitude"], st.attributes["gps_accuracy"]) == (near[0], 15)
+
+
 # --- iBeacons -------------------------------------------------------------------------------------
 
 async def test_report_ibeacon(hass):
