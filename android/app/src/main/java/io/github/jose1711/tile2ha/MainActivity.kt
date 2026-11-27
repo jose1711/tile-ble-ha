@@ -110,7 +110,7 @@ class MainActivity : Activity() {
         }
 
         button("Hľadať trackery (signál)") { save(); startActivity(Intent(this, FindActivity::class.java)) }
-        button("Uložiť a spustiť") { save(); s.enabled = true; ScanController.refresh(this, "uložené"); render() }
+        button("Uložiť a spustiť") { save(); s.enabled = true; ScanController.refresh(this, "uložené", network = true); render() }
         button("Zastaviť") { s.enabled = false; ScanController.refresh(this, "používateľ"); render() }
         button("Otestovať spojenie s HA") { save(); testConnection() }
         button("1. Oprávnenia (Bluetooth, poloha)") { requestBasePermissions() }
@@ -205,7 +205,7 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (s.enabled) ScanController.refresh(this, "oprávnenia")
+        if (s.enabled) ScanController.refresh(this, "oprávnenia", network = true)
         render()
     }
 }

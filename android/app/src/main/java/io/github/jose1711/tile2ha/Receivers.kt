@@ -9,10 +9,17 @@ import android.content.Intent
 /**
  * A Wi-Fi network connected: apply its rule (stop on an excluded SSID, resume on any other one).
  * Disconnecting does not wake us; the watchdog resumes the scan then.
+ *
+ * The callback also fires on every capability/link change of the network (signal strength, ...),
+ * many times a minute: act only when the SSID changed, and never re-register the callback here.
  */
 class NetworkReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (Settings(context).enabled) ScanController.refresh(context, "wifi")
+        val s = Settings(context)
+        if (!s.enabled) return
+        val ssid = Wifi.currentSsid(context) ?: ""
+        if (ssid == s.lastSsid) return
+        ScanController.refresh(context, "wifi")
     }
 }
 
@@ -21,7 +28,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
             intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
         ) return
-        if (Settings(context).enabled) ScanController.refresh(context, "štart")
+        if (Settings(context).enabled) ScanController.refresh(context, "štart", network = true)
     }
 }
 

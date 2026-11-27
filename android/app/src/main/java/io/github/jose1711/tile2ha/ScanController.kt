@@ -68,12 +68,22 @@ object ScanController {
         return ScanFilter.Builder().setManufacturerData(APPLE_ID, data, mask).build()
     }
 
-    /** Bring the scan into the state the settings ask for. Safe to call any time, from anywhere. */
+    /**
+     * Bring the scan into the state the settings ask for. Safe to call any time, from anywhere -
+     * except from [NetworkReceiver] with [network] = true: (re)registering the network callback makes
+     * the system deliver the current network at once, which would wake [NetworkReceiver] again (a loop
+     * that leaked PendingIntent cancel listeners in system_server until it crashed).
+     *
+     * [network]: re-register the network callback (start, settings changed). Otherwise it is only
+     * registered when its desired state differs from the last registration.
+     */
     @SuppressLint("MissingPermission")
-    fun refresh(ctx: Context, reason: String) {
+    fun refresh(ctx: Context, reason: String, network: Boolean = false) {
         val s = Settings(ctx)
         scheduleWatchdog(ctx, s.enabled)
-        registerNetworkCallback(ctx, s.enabled && s.wifiRules.isNotEmpty())
+        val netOn = s.enabled && s.wifiRules.isNotEmpty()
+        if (network || netOn != s.networkCallbackOn) registerNetworkCallback(ctx, netOn)
+        s.lastSsid = Wifi.currentSsid(ctx) ?: ""
 
         val adapter = ctx.getSystemService(BluetoothManager::class.java)?.adapter
         val scanner = adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
@@ -132,10 +142,12 @@ object ScanController {
         val cm = ctx.getSystemService(ConnectivityManager::class.java) ?: return
         val pi = networkIntent(ctx)
         runCatching { cm.unregisterNetworkCallback(pi) }
+        Settings(ctx).networkCallbackOn = false
         if (!on) return
         val req = NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build()
         runCatching { cm.registerNetworkCallback(req, pi) }
-            .onFailure { Settings(ctx).log("network callback: ${it.message}") }
+            .onSuccess { Settings(ctx).networkCallbackOn = true }
+            .onFailure { Settings(ctx).networkCallbackOn = false; Settings(ctx).log("network callback: ${it.message}") }
     }
 
     fun uuidFromBytes(b: ByteArray, off: Int): UUID {

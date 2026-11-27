@@ -95,6 +95,16 @@ class Settings(context: Context) {
         get() = p.getString("last_scan_state", "") ?: ""
         set(v) = p.edit().putString("last_scan_state", v).apply()
 
+    /** Whether the PendingIntent network callback is registered (lost on reboot/force stop). */
+    var networkCallbackOn: Boolean
+        get() = p.getBoolean("network_callback_on", false)
+        set(v) = p.edit().putBoolean("network_callback_on", v).apply()
+
+    /** SSID seen at the last [ScanController.refresh] ("" = none/unknown). */
+    var lastSsid: String
+        get() = p.getString("last_ssid", "") ?: ""
+        set(v) = p.edit().putString("last_ssid", v).apply()
+
     // --- throttling: key -> last successful report (epoch ms) ---------------------------------
 
     fun shouldSend(key: String, now: Long): Boolean =
